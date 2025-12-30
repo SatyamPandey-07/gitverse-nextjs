@@ -30,20 +30,15 @@ export class RepositoryService {
       // If analysis failed or pending, retry analysis
       if (existingRepository.status === 'failed' || existingRepository.status === 'pending') {
         console.log(`Retrying analysis for repository ${existingRepository.id}`)
-        await prisma.repository.update({
-          where: { id: existingRepository.id },
-          data: { status: 'analyzing' },
-        })
-        try {
-          await this.analyzeRepository(existingRepository.id)
-        } catch (error) {
+        this.analyzeRepository(existingRepository.id).catch((error) => {
           console.error(`Failed to re-analyze repository ${existingRepository.id}:`, error)
-          await prisma.repository.update({
-            where: { id: existingRepository.id },
-            data: { status: 'failed' },
-          })
-          throw error
-        }
+          prisma.repository
+            .update({
+              where: { id: existingRepository.id },
+              data: { status: 'failed' },
+            })
+            .catch(console.error)
+        })
       }
 
       return existingRepository
@@ -55,36 +50,22 @@ export class RepositoryService {
         url: input.url,
         description: input.description,
         userId: input.userId,
-        status: 'analyzing',
+        status: 'pending',
       },
     })
 
-    console.log(`Created repository ${repository.id}, starting analysis...`)
-
-    // Must await in serverless - function needs to complete before terminating
-    try {
-      await this.analyzeRepository(repository.id)
-      console.log(`Analysis completed for repository ${repository.id}`)
-    } catch (error) {
+    // Start analysis in background (don't await)
+    this.analyzeRepository(repository.id).catch((error) => {
       console.error(`Failed to analyze repository ${repository.id}:`, error)
-      await prisma.repository.update({
-        where: { id: repository.id },
-        data: { status: 'failed' },
-      })
-      throw error // Re-throw to let caller know it failed
-    }
+      prisma.repository
+        .update({
+          where: { id: repository.id },
+          data: { status: 'failed' },
+        })
+        .catch(console.error)
+    })
 
     return repository
-  }
-
-  /**
-   * Update repository status
-   */
-  async updateRepositoryStatus(repositoryId: number, status: string) {
-    await prisma.repository.update({
-      where: { id: repositoryId },
-      data: { status },
-    })
   }
 
   /**

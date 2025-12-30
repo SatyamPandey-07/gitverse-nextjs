@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/middleware'
 import { repositoryService } from '@/lib/services/repositoryService'
 
-// Increase timeout for repository creation and analysis
-export const maxDuration = 300
-export const runtime = 'nodejs'
-
 export async function POST(request: NextRequest) {
   try {
     const user = requireAuth(request)
@@ -15,13 +11,19 @@ export async function POST(request: NextRequest) {
     console.log('Create repository request:', { name, url, userId: user.userId })
 
     if (!name || !url) {
-      return NextResponse.json({ error: 'Name and URL are required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Name and URL are required' },
+        { status: 400 }
+      )
     }
 
     // Validate URL format
     const urlPattern = /^https?:\/\/.+/
     if (!urlPattern.test(url)) {
-      return NextResponse.json({ error: 'Invalid repository URL' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid repository URL' },
+        { status: 400 }
+      )
     }
 
     const repository = await repositoryService.createRepository({
@@ -52,6 +54,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ repositories })
   } catch (error: any) {
     console.error('List repositories error:', error)
-    return NextResponse.json({ error: 'Failed to list repositories' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to list repositories' },
+      { status: 500 }
+    )
   }
 }
