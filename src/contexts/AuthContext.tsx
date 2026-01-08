@@ -7,6 +7,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import { useSession } from "next-auth/react";
 import { buildApiUrl } from "../services/apiConfig";
 
 interface User {
@@ -42,10 +43,30 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { data: session, status } = useSession();
 
-  // Check for existing auth on mount
+  // Check for existing auth on mount (NextAuth or JWT)
   useEffect(() => {
     const checkAuth = async () => {
+      // If NextAuth session exists, use it
+      if (status === "loading") {
+        return; // Still loading session
+      }
+
+      if (session?.user) {
+        setUser({
+          id: session.user.id || "",
+          name: session.user.name || "",
+          email: session.user.email || "",
+          avatar:
+            session.user.image ||
+            `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.email}`,
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Otherwise, check for JWT token
       const token = localStorage.getItem("gitverse_token");
 
       if (token) {
@@ -79,7 +100,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     checkAuth();
-  }, []);
+  }, [session, status]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -158,6 +179,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     const token = localStorage.getItem("gitverse_token");
 
+    // Handle JWT logout
     if (token) {
       try {
         await fetch(buildApiUrl("/api/auth/logout"), {
@@ -169,9 +191,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error("Logout error:", error);
       }
+      localStorage.removeItem("gitverse_token");
     }
 
-    localStorage.removeItem("gitverse_token");
+    // Handle NextAuth logout
+    if (session) {
+      const { signOut } = await import("next-auth/react");
+      await signOut({ redirect: false });
+    }
+
     setUser(null);
   };
 

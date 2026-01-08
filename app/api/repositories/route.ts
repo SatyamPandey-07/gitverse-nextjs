@@ -5,7 +5,7 @@ import { analysisJobService } from "@/lib/services/analysisJobService";
 
 export async function POST(request: NextRequest) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
     const body = await request.json();
     const { name, url, description } = body;
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
     const repositories = await repositoryService.listRepositories(user.userId);
 
     return NextResponse.json({ repositories });

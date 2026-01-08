@@ -1,6 +1,6 @@
 // This file contains route templates
 const routes = {
-  'app/api/ai/suggest-commit/route.ts': `import { NextRequest, NextResponse } from 'next/server'
+  "app/api/ai/suggest-commit/route.ts": `import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/middleware'
 import { geminiService } from '@/lib/services/geminiService'
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     )
   }
 }`,
-  'app/api/users/profile/route.ts': `import { NextRequest, NextResponse } from 'next/server'
+  "app/api/users/profile/route.ts": `import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireAuth } from '@/lib/middleware'
 
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest) {
     const updateData: any = { name, email }
 
     if (avatar && (avatar.startsWith('data:') || avatar.startsWith('http'))) {
-      updateData.avatarUrl = avatar
+      updateData.image = avatar
     }
 
     const updatedUser = await prisma.user.update({
@@ -70,12 +70,15 @@ export async function PUT(request: NextRequest) {
         id: true,
         name: true,
         email: true,
-        avatarUrl: true,
+        image: true,
         createdAt: true,
       },
     })
 
-    return NextResponse.json(updatedUser)
+    return NextResponse.json({
+      ...updatedUser,
+      avatarUrl: (updatedUser as any).image,
+    })
   } catch (error: any) {
     console.error('Error updating profile:', error)
     return NextResponse.json(
@@ -83,7 +86,7 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}`
+}`,
 };
 
 console.log(JSON.stringify(routes, null, 2));

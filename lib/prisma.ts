@@ -1,6 +1,34 @@
 import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
+import { Pool as PgPool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaNeonHttp } from "@prisma/adapter-neon";
+
+type PrismaAdapterChoice = "pg" | "neon-http";
+
+function getAdapterChoice(connectionString: string): PrismaAdapterChoice {
+  const envChoice = (process.env.PRISMA_ADAPTER || "").trim().toLowerCase();
+  if (envChoice === "pg") return "pg";
+  if (envChoice === "neon" || envChoice === "neon-http") return "neon-http";
+
+  // Heuristics:
+  // - If you're using Neon pooler (`-pooler.` host), prefer TCP via `pg` adapter.
+  //   The Neon HTTP driver uses `fetch()` and can be flaky/blocked in some environments.
+  // - Otherwise, fall back to Neon HTTP for Neon URLs.
+  let host = "";
+  try {
+    host = new URL(connectionString).host;
+  } catch {
+    // Ignore URL parsing errors; fall through.
+  }
+
+  const isNeonHost =
+    host.endsWith(".neon.tech") || connectionString.includes("neon.tech");
+  const isPoolerHost = host.includes("-pooler.");
+
+  if (isPoolerHost) return "pg";
+  if (isNeonHost) return "neon-http";
+  return "pg";
+}
 
 function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
@@ -12,12 +40,35 @@ function createPrismaClient(): PrismaClient {
     throw new Error("DATABASE_URL is required");
   }
 
-  const pool = new Pool({
+  const adapterChoice = getAdapterChoice(connectionString);
+
+  if (adapterChoice === "neon-http") {
+    // Your environment is rejecting Neon WebSocket connections (expects HTTP 101).
+    // Use Neon HTTP mode to avoid WS handshakes entirely.
+    const adapter = new PrismaNeonHttp(connectionString, {} as any);
+    return new PrismaClient({ adapter, log: ["error", "warn"] });
+  }
+
+  const poolMaxRaw = process.env.PG_POOL_MAX;
+  const poolMax = poolMaxRaw ? Number(poolMaxRaw) : 2;
+  const normalizedPoolMax =
+    Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 2;
+
+  const connectionTimeoutMsRaw = process.env.PG_POOL_CONNECTION_TIMEOUT_MS;
+  const connectionTimeoutMs = connectionTimeoutMsRaw
+    ? Number(connectionTimeoutMsRaw)
+    : 30000;
+  const normalizedConnectionTimeoutMs =
+    Number.isFinite(connectionTimeoutMs) && connectionTimeoutMs > 0
+      ? connectionTimeoutMs
+      : 30000;
+
+  const pool = new PgPool({
     connectionString,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: normalizedConnectionTimeoutMs,
     idleTimeoutMillis: 30000,
-    max: 20,
-    min: 2,
+    max: normalizedPoolMax,
+    min: 0,
   });
 
   pool.on("error", (err) => {
@@ -38,11 +89,11 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 export function getPrisma(): PrismaClient {
-  if (globalForPrisma.prisma) return globalForPrisma.prisma;
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
 
-  const created = createPrismaClient();
-  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = created;
-  return created;
+  return globalForPrisma.prisma;
 }
 
 const prisma = new Proxy({} as PrismaClient, {

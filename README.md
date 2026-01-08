@@ -162,6 +162,34 @@ docker build -t gitverse-nextjs .
 docker run -p 3000:3000 gitverse-nextjs
 ```
 
+### Firebase App Hosting (Cloud Run)
+
+This repo includes App Hosting config in `apphosting.yaml`.
+
+1. Create Secret Manager entries (names must match `apphosting.yaml`):
+
+```bash
+firebase apphosting:secrets:set webapp-firebase-api-key
+firebase apphosting:secrets:set gemini-api-key
+firebase apphosting:secrets:set database-url
+firebase apphosting:secrets:set jwt-secret
+
+firebase apphosting:secrets:set nextauth-url
+firebase apphosting:secrets:set nextauth-secret
+firebase apphosting:secrets:set google-client-id
+firebase apphosting:secrets:set google-client-secret
+```
+
+2. Deploy:
+
+```bash
+firebase deploy
+```
+
+3. In Google Cloud Console (OAuth client), add redirect URI:
+
+- `https://<your-domain>/api/auth/callback/google`
+
 ## 📝 Environment Variables
 
 Required:
@@ -169,6 +197,13 @@ Required:
 - `DATABASE_URL` - PostgreSQL connection string
 - `JWT_SECRET` - JWT secret key
 - `GEMINI_API_KEY` - Google Gemini API key
+
+OAuth (Google / NextAuth):
+
+- `NEXTAUTH_URL` - Deployed base URL (e.g. `https://<your-domain>`)
+- `NEXTAUTH_SECRET` - Session/JWT signing secret (generate with `openssl rand -base64 32`)
+- `GOOGLE_CLIENT_ID` - Google OAuth client id
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
 
 Optional:
 

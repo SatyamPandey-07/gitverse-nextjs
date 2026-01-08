@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: { jobId: string } }
 ) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
     const jobId = params.jobId;
 
     if (!jobId) {

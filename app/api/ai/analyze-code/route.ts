@@ -4,7 +4,7 @@ import { getGeminiService } from "@/lib/services/geminiService";
 
 export async function POST(request: NextRequest) {
   try {
-    requireAuth(request);
+    await requireAuth(request);
     const body = await request.json();
     const { code, language, analysisType, context } = body;
 

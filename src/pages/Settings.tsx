@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { User, Lock, Shield, Trash2 } from "lucide-react";
 import { Save } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -27,10 +27,22 @@ export default function Settings() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const didInitProfileForm = useRef(false);
+
   // Profile state
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [avatar, setAvatar] = useState(user?.avatar || "");
+
+  // When using Google login, `user` arrives async from NextAuth session.
+  // Initialize the form once when the user becomes available.
+  useEffect(() => {
+    if (!user || didInitProfileForm.current) return;
+    setName(user.name || "");
+    setEmail(user.email || "");
+    setAvatar(user.avatar || "");
+    didInitProfileForm.current = true;
+  }, [user]);
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -50,7 +62,10 @@ export default function Settings() {
           avatar,
         },
         {
-          headers: { Authorization: `Bearer ${token}` },
+          // If user is logged in via NextAuth (Google), rely on cookies.
+          // If user is logged in via legacy JWT, send the Bearer token.
+          withCredentials: true,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         }
       );
 

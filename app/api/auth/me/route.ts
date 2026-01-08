@@ -1,25 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { getAuthUser } from '@/lib/middleware'
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { getAuthUser } from "@/lib/middleware";
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = getAuthUser(request)
+    const user = await getAuthUser(request);
 
     if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     // Fetch user details
     const userDetails = await prisma.user.findUnique({
       where: { id: user.userId },
-    })
+    });
 
     if (!userDetails) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     return NextResponse.json({
@@ -27,11 +27,14 @@ export async function GET(request: NextRequest) {
         id: userDetails.id,
         email: userDetails.email,
         name: userDetails.name,
-        avatarUrl: userDetails.avatarUrl,
+        avatarUrl: (userDetails as any).image,
       },
-    })
+    });
   } catch (error) {
-    console.error('Get user error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("Get user error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

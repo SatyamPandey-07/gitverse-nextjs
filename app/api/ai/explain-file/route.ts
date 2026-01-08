@@ -26,7 +26,7 @@ type Repository = {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
     const body = await request.json();
     const { repositoryId, filePath } = body;
 

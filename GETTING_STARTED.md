@@ -37,6 +37,14 @@ JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 # Gemini AI - Get from https://makersuite.google.com/app/apikey
 GEMINI_API_KEY=your_gemini_api_key_here
 
+# NextAuth (required for Google login)
+# For local dev:
+NEXTAUTH_URL=http://localhost:3000
+# Generate with: openssl rand -base64 32
+NEXTAUTH_SECRET=your-nextauth-secret
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
 # Optional: Base URL for API calls
 # Leave unset to use same-origin `/api/...` (recommended).
 # If you set it, avoid a trailing slash (e.g. https://example.com, not https://example.com/)

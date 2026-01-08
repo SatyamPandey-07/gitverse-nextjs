@@ -1,66 +1,67 @@
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import prisma from '@/lib/prisma'
-import { requireAuth } from '@/lib/middleware'
+import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import prisma from "@/lib/prisma";
+import { requireAuth } from "@/lib/middleware";
 
 export async function POST(request: NextRequest) {
   try {
-    const user = requireAuth(request)
-    const body = await request.json()
-    const { currentPassword, newPassword } = body
+    const user = await requireAuth(request);
+    const body = await request.json();
+    const { currentPassword, newPassword } = body;
 
     if (!currentPassword || !newPassword) {
       return NextResponse.json(
-        { message: 'Current and new passwords are required' },
+        { message: "Current and new passwords are required" },
         { status: 400 }
-      )
+      );
     }
 
     if (newPassword.length < 8) {
       return NextResponse.json(
-        { message: 'Password must be at least 8 characters' },
+        { message: "Password must be at least 8 characters" },
         { status: 400 }
-      )
+      );
     }
 
     const userDetails = await prisma.user.findUnique({
       where: { id: user.userId },
-    })
+    });
 
     if (!userDetails) {
-      return NextResponse.json({ message: 'User not found' }, { status: 404 })
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    const passwordHash = userDetails.passwordHash || (userDetails as any).password
+    const passwordHash =
+      userDetails.passwordHash || (userDetails as any).password;
     if (!passwordHash) {
       return NextResponse.json(
-        { message: 'Password verification failed' },
+        { message: "Password verification failed" },
         { status: 401 }
-      )
+      );
     }
 
-    const isPasswordValid = await bcrypt.compare(currentPassword, passwordHash)
+    const isPasswordValid = await bcrypt.compare(currentPassword, passwordHash);
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { message: 'Current password is incorrect' },
+        { message: "Current password is incorrect" },
         { status: 401 }
-      )
+      );
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10)
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await prisma.user.update({
       where: { id: user.userId },
       data: { passwordHash: hashedPassword },
-    })
+    });
 
-    return NextResponse.json({ message: 'Password changed successfully' })
+    return NextResponse.json({ message: "Password changed successfully" });
   } catch (error: any) {
-    console.error('Error changing password:', error)
+    console.error("Error changing password:", error);
     return NextResponse.json(
-      { message: 'Failed to change password' },
+      { message: "Failed to change password" },
       { status: 500 }
-    )
+    );
   }
 }

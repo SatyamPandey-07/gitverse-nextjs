@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
 
     const userDetails = await prisma.user.findUnique({
       where: { id: user.userId },
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
         id: true,
         name: true,
         email: true,
-        avatarUrl: true,
+        image: true,
         createdAt: true,
       },
     });
@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(userDetails);
+    return NextResponse.json({
+      ...userDetails,
+      avatarUrl: (userDetails as any).image,
+    });
   } catch (error: any) {
     console.error("Error fetching user:", error);
     return NextResponse.json(
@@ -36,7 +39,7 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
 
     await prisma.user.delete({
       where: { id: user.userId },

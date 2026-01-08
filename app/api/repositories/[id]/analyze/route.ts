@@ -8,7 +8,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
     const id = parseInt(params.id);
 
     if (isNaN(id)) {

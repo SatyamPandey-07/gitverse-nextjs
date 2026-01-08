@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
     const id = parseInt(params.id);
 
     if (isNaN(id)) {
@@ -70,7 +70,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = requireAuth(request);
+    const user = await requireAuth(request);
     const id = parseInt(params.id);
 
     if (isNaN(id)) {
