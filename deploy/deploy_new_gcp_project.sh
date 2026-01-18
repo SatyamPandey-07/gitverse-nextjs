@@ -22,6 +22,15 @@ set -euo pipefail
 #   export NEXTAUTH_SECRET='...'
 #   export GOOGLE_CLIENT_ID='...'
 #   export GOOGLE_CLIENT_SECRET='...'
+#
+#   # Required GitHub App config
+#   export GITHUB_APP_ID='123456'
+#   export GITHUB_APP_PRIVATE_KEY='-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'
+#   export GITHUB_APP_SLUG='your-github-app-slug'
+#   export GITHUB_WEBHOOK_SECRET='...'
+#
+#   # Optional (defaults to NEXTAUTH_SECRET)
+#   export GITHUB_APP_STATE_SECRET='...'
 #   export NEXT_PUBLIC_FIREBASE_API_KEY='...'
 #
 #   # Optional: only if the project has no billing linked yet
@@ -74,10 +83,36 @@ load_dotenv() {
   # - Preserves everything after the first '=' (e.g., URLs containing '&')
   # - Strips matching single/double quotes around the whole value
   # - Does not override already-set environment variables
+  local multiline_key=""
+  local multiline_value=""
+
   while IFS= read -r line || [[ -n "$line" ]]; do
+    local line_raw="$line"
+
     # trim leading/trailing whitespace
     line="${line#${line%%[![:space:]]*}}"
     line="${line%${line##*[![:space:]]}}"
+
+    # If we're currently capturing a multi-line value (e.g., PEM), append raw line and
+    # finish when we hit the END marker.
+    if [[ -n "$multiline_key" ]]; then
+      # Skip mode: consume lines until END marker
+      if [[ "$multiline_key" == "__SKIP__" ]]; then
+        if [[ "$line_raw" == "-----END "* ]]; then
+          multiline_key=""
+          multiline_value=""
+        fi
+        continue
+      fi
+
+      multiline_value+=$'\n'"$line_raw"
+      if [[ "$line_raw" == "-----END "* ]]; then
+        export "$multiline_key=$multiline_value"
+        multiline_key=""
+        multiline_value=""
+      fi
+      continue
+    fi
 
     [[ -z "$line" ]] && continue
     [[ "$line" == \#* ]] && continue
@@ -98,6 +133,12 @@ load_dotenv() {
     value="${value#${value%%[![:space:]]*}}"
     value="${value%${value##*[![:space:]]}}"
 
+    # Only accept valid shell identifier keys. This prevents PEM/base64 lines
+    # (which often contain '=') from being mis-parsed as env assignments.
+    if [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      continue
+    fi
+
     # Strip surrounding quotes (only if they match and cover the entire value)
     if [[ ${#value} -ge 2 ]]; then
       if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
@@ -105,6 +146,19 @@ load_dotenv() {
       elif [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
         value="${value:1:${#value}-2}"
       fi
+    fi
+
+    # Support multi-line PEM keys in .env (common when copy/pasting GitHub App private keys).
+    # We capture until the END marker and then export the full value (with newlines).
+    if [[ "$key" == "GITHUB_APP_PRIVATE_KEY" && "$value" == "-----BEGIN "* && "$value" != *"-----END "* ]]; then
+      if [[ -z "${!key:-}" ]]; then
+        multiline_key="$key"
+        multiline_value="$value"
+      else
+        multiline_key="__SKIP__"
+        multiline_value=""
+      fi
+      continue
     fi
 
     if [[ -z "${!key:-}" ]]; then
@@ -129,6 +183,13 @@ fi
 : "${NEXTAUTH_SECRET:?Must set NEXTAUTH_SECRET}"
 : "${GOOGLE_CLIENT_ID:?Must set GOOGLE_CLIENT_ID}"
 : "${GOOGLE_CLIENT_SECRET:?Must set GOOGLE_CLIENT_SECRET}"
+: "${GITHUB_APP_ID:?Must set GITHUB_APP_ID}"
+: "${GITHUB_APP_PRIVATE_KEY:?Must set GITHUB_APP_PRIVATE_KEY}"
+: "${GITHUB_APP_SLUG:?Must set GITHUB_APP_SLUG}"
+: "${GITHUB_WEBHOOK_SECRET:?Must set GITHUB_WEBHOOK_SECRET}"
+
+# Optional (defaults to NEXTAUTH_SECRET in app code)
+GITHUB_APP_STATE_SECRET="${GITHUB_APP_STATE_SECRET:-}"
 
 # Optional (not currently used by the Cloud Run deploy path / app code)
 NEXT_PUBLIC_FIREBASE_API_KEY="${NEXT_PUBLIC_FIREBASE_API_KEY:-}"
@@ -287,6 +348,11 @@ ensure_secret NEXTAUTH_URL "$NEXTAUTH_URL"
 ensure_secret NEXTAUTH_SECRET "$NEXTAUTH_SECRET"
 ensure_secret GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"
 ensure_secret GOOGLE_CLIENT_SECRET "$GOOGLE_CLIENT_SECRET"
+ensure_secret GITHUB_APP_ID "$GITHUB_APP_ID"
+ensure_secret GITHUB_APP_PRIVATE_KEY "$GITHUB_APP_PRIVATE_KEY"
+ensure_secret GITHUB_APP_SLUG "$GITHUB_APP_SLUG"
+ensure_secret GITHUB_WEBHOOK_SECRET "$GITHUB_WEBHOOK_SECRET"
+ensure_secret_if_set GITHUB_APP_STATE_SECRET "$GITHUB_APP_STATE_SECRET"
 ensure_secret_if_set NEXT_PUBLIC_FIREBASE_API_KEY "$NEXT_PUBLIC_FIREBASE_API_KEY"
 
 # ---- Build image ----
@@ -302,8 +368,11 @@ fi
 # ---- Deploy web service ----
 echo "==> Deploying web service: $SERVICE_WEB"
 ENV_VARS_COMMON="PRISMA_ADAPTER=pg,PG_POOL_MAX=2,PG_POOL_CONNECTION_TIMEOUT_MS=30000"
-BASE_SET_SECRETS="DATABASE_URL=DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,JWT_SECRET=JWT_SECRET:latest,NEXTAUTH_URL=NEXTAUTH_URL:latest,NEXTAUTH_SECRET=NEXTAUTH_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest"
+BASE_SET_SECRETS="DATABASE_URL=DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,JWT_SECRET=JWT_SECRET:latest,NEXTAUTH_URL=NEXTAUTH_URL:latest,NEXTAUTH_SECRET=NEXTAUTH_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,GITHUB_APP_ID=GITHUB_APP_ID:latest,GITHUB_APP_PRIVATE_KEY=GITHUB_APP_PRIVATE_KEY:latest,GITHUB_APP_SLUG=GITHUB_APP_SLUG:latest,GITHUB_WEBHOOK_SECRET=GITHUB_WEBHOOK_SECRET:latest"
 WEB_SET_SECRETS="$BASE_SET_SECRETS"
+if gcloud secrets describe GITHUB_APP_STATE_SECRET >/dev/null 2>&1; then
+  WEB_SET_SECRETS="$WEB_SET_SECRETS,GITHUB_APP_STATE_SECRET=GITHUB_APP_STATE_SECRET:latest"
+fi
 if gcloud secrets describe NEXT_PUBLIC_FIREBASE_API_KEY >/dev/null 2>&1; then
   WEB_SET_SECRETS="$WEB_SET_SECRETS,NEXT_PUBLIC_FIREBASE_API_KEY=NEXT_PUBLIC_FIREBASE_API_KEY:latest"
 fi
@@ -344,6 +413,9 @@ if [[ "$NEXTAUTH_URL" == "https://placeholder.invalid" ]] || is_localhost_url "$
 
   echo "==> Redeploying web service to pick up updated NEXTAUTH_URL"
   WEB_SET_SECRETS="$BASE_SET_SECRETS"
+  if gcloud secrets describe GITHUB_APP_STATE_SECRET >/dev/null 2>&1; then
+    WEB_SET_SECRETS="$WEB_SET_SECRETS,GITHUB_APP_STATE_SECRET=GITHUB_APP_STATE_SECRET:latest"
+  fi
   if gcloud secrets describe NEXT_PUBLIC_FIREBASE_API_KEY >/dev/null 2>&1; then
     WEB_SET_SECRETS="$WEB_SET_SECRETS,NEXT_PUBLIC_FIREBASE_API_KEY=NEXT_PUBLIC_FIREBASE_API_KEY:latest"
   fi
@@ -367,6 +439,9 @@ echo "==> Deploying worker service: $SERVICE_WORKER"
 # Worker needs to stay alive to poll the DB; keep min instances at 1.
 # Uses the same image but overrides the command to run the worker health server + loop.
 WORKER_SET_SECRETS="$BASE_SET_SECRETS"
+if gcloud secrets describe GITHUB_APP_STATE_SECRET >/dev/null 2>&1; then
+  WORKER_SET_SECRETS="$WORKER_SET_SECRETS,GITHUB_APP_STATE_SECRET=GITHUB_APP_STATE_SECRET:latest"
+fi
 if gcloud secrets describe NEXT_PUBLIC_FIREBASE_API_KEY >/dev/null 2>&1; then
   WORKER_SET_SECRETS="$WORKER_SET_SECRETS,NEXT_PUBLIC_FIREBASE_API_KEY=NEXT_PUBLIC_FIREBASE_API_KEY:latest"
 fi

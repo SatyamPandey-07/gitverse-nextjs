@@ -16,6 +16,13 @@ enum JobStatus {
   FAILED
 }
 
+enum PullRequestStatus {
+  OPEN
+  CLOSED
+  MERGED
+  FAILED
+}
+
 model User {
   id                    Int          @id @default(autoincrement())
   email                 String       @unique
@@ -32,8 +39,79 @@ model User {
   analysisJobs          AnalysisJob[]
   accounts              Account[]
   sessions              Session[]
+  githubAccount         GitHubAccount?
+  githubRepos           GitHubRepo[]
 
   @@map("users")
+}
+
+model GitHubAccount {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique @map("user_id")
+  githubUserId BigInt   @unique @map("github_user_id")
+  username     String   @map("username")
+  accessToken  String   @map("access_token") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([username])
+  @@map("github_accounts")
+}
+
+model GitHubRepo {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  repoFullName String   @map("repo_full_name")
+  installationId BigInt? @map("installation_id")
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pullRequests PullRequest[]
+
+  @@unique([userId, repoFullName])
+  @@index([installationId])
+  @@index([enabled])
+  @@map("github_repos")
+}
+
+model PullRequest {
+  id        Int               @id @default(autoincrement())
+  repoId    Int               @map("repo_id")
+  prNumber  Int               @map("pr_number")
+  title     String
+  author    String
+  headSha   String            @map("head_sha")
+  htmlUrl   String            @map("html_url")
+  status    PullRequestStatus @default(OPEN)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  repo    GitHubRepo  @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  reviews PRReview[]
+
+  @@unique([repoId, prNumber])
+  @@index([repoId])
+  @@index([headSha])
+  @@map("pull_requests")
+}
+
+model PRReview {
+  id            Int      @id @default(autoincrement())
+  pullRequestId Int      @map("pull_request_id")
+  headSha       String   @map("head_sha")
+  reviewText    String   @map("review_text") @db.Text
+  rawJson       Json     @map("raw_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  pullRequest PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([pullRequestId, headSha])
+  @@index([createdAt])
+  @@map("pr_reviews")
 }
 
 model Account {
