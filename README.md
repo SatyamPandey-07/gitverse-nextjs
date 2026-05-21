@@ -295,7 +295,7 @@ If Google login does not work:
 - Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 - Ensure the OAuth callback URL matches:
   
-  ```
+  ```text
   http://localhost:3000/api/auth/callback/google
   ```
 
