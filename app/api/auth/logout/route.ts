@@ -5,22 +5,23 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get("content-type");
 
-    if (!contentType || !contentType.includes("application/json")) {
+    if (contentType && !contentType.includes("application/json")) {
       return NextResponse.json(
         { error: "Content-Type must be application/json"},
         { status: 400 }
       );
     }
 
-    try {
-      await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON payload"},
-        { status: 400 }
-      );
-    }
-
+    if (contentType) {
+      try {
+        await request.json();
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid JSON payload" },
+          { status: 400 }
+        );
+      }
+   }
     //Authentication user
     const user = await getAuthUser(request);
 
@@ -45,8 +46,8 @@ export async function POST(request: NextRequest) {
 
     //prevent stack trace from reaching client
     return NextResponse.json(
-      { error: "Something went wrong" },
-      { status: 400 }
+      { error: "Internal server error" },
+      { status: 500 }
     );
   }
 }
