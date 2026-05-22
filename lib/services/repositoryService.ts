@@ -639,10 +639,10 @@ interface GetRepositoriesOptions {
 }
 
 export async function getRepositories({ userId, limit, cursor }: GetRepositoriesOptions) {
-  const cursorId = cursor ? parseInt(cursor, 10) : undefined;
-  if (cursor && (isNaN(cursorId!) || cursorId! <= 0)) {
-    throw new Error("Invalid cursor value");
-  }
+  const cursorId = cursor ? parseInt(cursor.trim(), 10) : undefined;
+if (cursor && (!/^[1-9]\d*$/.test(cursor.trim()) || isNaN(cursorId!))) {
+  throw new Error("Invalid cursor value");
+}
 
   return prisma.repository.findMany({
     where: { userId },
