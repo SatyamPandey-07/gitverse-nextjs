@@ -59,7 +59,7 @@ export default function LandingPage() {
       active instanceof HTMLSelectElement ||
       (active instanceof HTMLElement && active.isContentEditable);
 
-    if (e.key === "/" && !isTyping) {
+    if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !isTyping) {
       e.preventDefault();
       searchRef.current?.focus();
     }

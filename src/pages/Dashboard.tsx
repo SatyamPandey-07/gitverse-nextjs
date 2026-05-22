@@ -71,7 +71,14 @@ export default function Dashboard() {
       searchRef.current?.focus();
     }
 
-  if(e.key === "Escape" && (document.activeElement === searchRef.current || !isTyping)) {
+  if (
+  e.key === "/" &&
+  !e.ctrlKey &&
+  !e.metaKey &&
+  !e.altKey &&
+  !e.shiftKey &&
+  !isTyping
+) {
     setRepoUrl("");
     searchRef.current?.blur();
     }
