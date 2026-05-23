@@ -61,6 +61,12 @@ interface BranchVisualizationProps {
 
 type FilterType = "all" | "active" | "stale" | "merged";
 
+const toSafeIso = (value?: string | Date) => {
+  if (!value) return new Date().toISOString();
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+};
+
 export function BranchVisualization({ repository }: BranchVisualizationProps) {
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [filter, setFilter] = useState<FilterType>("active");
@@ -77,7 +83,7 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
         hash: "",
         message: "",
         author: "",
-        timestamp: branch.lastCommitAt ? new Date(branch.lastCommitAt).toISOString() : new Date().toISOString(),
+        timestamp: toSafeIso(branch.lastCommitAt),
       },
       ahead: 0,
       behind: 0,
@@ -328,15 +334,16 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
                     message: rawCommit.message || "",
                     author: rawCommit.authorName || "Unknown",
                     authorName: rawCommit.authorName || "Unknown",
-                    timestamp: rawCommit.committedAt ? new Date(rawCommit.committedAt).toISOString() : new Date().toISOString(),
+                    timestamp: toSafeIso(rawCommit.committedAt),
                     branch: rawCommit.branch || "main",
                     parents: rawCommit.parents || [],
                     isMerge: rawCommit.isMerge || false,
                   };
                   const branchColor = getBranchTypeColor(commit.branch);
 
+                  const commitKey = commit.hash || String(rawCommit.id ?? index);
                   return (
-                    <div key={commit.hash} className="relative">
+                    <div key={commitKey} className="relative">
                       {/* Connection lines */}
                       {index > 0 && (
                         <div className="absolute left-2 -top-4 h-4 w-px bg-primary/30" />
